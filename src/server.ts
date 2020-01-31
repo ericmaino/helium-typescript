@@ -21,6 +21,32 @@ import { robotsHandler } from "./middleware/robotsText";
 import { version } from "./config/constants";
 
 (async () => {
+    /////////////////////////////////////////////////
+    //adding memwatch to try to catch leaks - jofultz
+    
+    const memWatch = require ('@aidemaster/node-memwatch');
+    var heapDump = require('heapdump');
+
+    var baseDump = new memWatch.HeapDiff();
+
+    // This will fire on each GC.
+    // We need to modify it so that it will check to ensure heap growth after multiple GCs (say 3 - 5)
+    // on a rolling window so that we don't get so many dumps (when the write is fixed)
+    // and are more temporally proximal to the actual issue.
+    memWatch.on('stats', function dumpHeap(stats){
+        var diff = baseDump.compare();
+        var dumpString = JSON.stringify(diff);
+
+        console.log(dumpString);
+        
+        baseDump.update();
+    
+        // this presently doesn't work.  I suspect file write permissons for the process
+        heapDump.writeSnapshot('/var/local/' + Date.now() + '.heapsnapshot');
+    });
+    //end of heap debugging code
+    ////////////////////////////////////////////////////////////
+
     const restify = require("restify");
 
     /**
