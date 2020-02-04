@@ -19,6 +19,7 @@ import { ITelemProvider } from "./telem/itelemprovider";
 import { MovieController } from "./app/controllers/movie";
 import { robotsHandler } from "./middleware/robotsText";
 import { version } from "./config/constants";
+import { AnyARecord } from "dns";
 
 (async () => {
     /////////////////////////////////////////////////
@@ -28,21 +29,46 @@ import { version } from "./config/constants";
     var heapDump = require('heapdump');
 
     var baseDump = new memWatch.HeapDiff();
-
+    var snapshots:any[] = [];
+    
     // This will fire on each GC.
     // We need to modify it so that it will check to ensure heap growth after multiple GCs (say 3 - 5)
     // on a rolling window so that we don't get so many dumps (when the write is fixed)
     // and are more temporally proximal to the actual issue.
     memWatch.on('stats', function dumpHeap(stats){
         var diff = baseDump.compare();
-        var dumpString = JSON.stringify(diff);
 
-        console.log(dumpString);
+        if (diff.change.size_bytes > 0)
+        {
+            snapshots.push(diff);
+        }
+        else
+        {
+            let snapshots: any[]=[];
+            snapshots.push(diff);
+        }
+        
+        // If we have 5 GC collections pass with RAM growth then
+        // Write out snapshots and perform a heapdump
+        if (snapshots.length>=5){
+            //write snaps
+            snapshots.forEach(function writeSnaps(currentDiff){
+                var snapString = JSON.stringify(currentDiff);
+                console.log(snapString);
+            });
+
+            //do heapdump
+            // this presently doesn't work.  I suspect file write permissons for the process
+            heapDump.writeSnapshot('/var/local/' + Date.now() + '.heapsnapshot');            
+
+            //reset array
+            let snapshots: any[]=[];
+        }
+
         
         baseDump.update();
     
-        // this presently doesn't work.  I suspect file write permissons for the process
-        heapDump.writeSnapshot('/var/local/' + Date.now() + '.heapsnapshot');
+
     });
     //end of heap debugging code
     ////////////////////////////////////////////////////////////
