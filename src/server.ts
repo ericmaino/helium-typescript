@@ -44,7 +44,7 @@ import { AnyARecord } from "dns";
         }
         else
         {
-            let snapshots: any[]=[];
+            snapshots = [];
             snapshots.push(diff);
         }
         
@@ -62,7 +62,7 @@ import { AnyARecord } from "dns";
             heapDump.writeSnapshot('/var/local/' + Date.now() + '.heapsnapshot');            
 
             //reset array
-            let snapshots: any[]=[];
+            snapshots=[];
         }
 
         
