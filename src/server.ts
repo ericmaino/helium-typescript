@@ -22,55 +22,83 @@ import { version } from "./config/constants";
 import { AnyARecord } from "dns";
 
 (async () => {
-    /////////////////////////////////////////////////
-    //adding memwatch to try to catch leaks - jofultz
-    
-    const memWatch = require ('@aidemaster/node-memwatch');
-    var heapDump = require('heapdump');
+    const appmetrics = require("appmetrics");
+    const monitoring = appmetrics.monitor();
+    let gcCount = 0;
+    let prev = 0;
 
-    var baseDump = new memWatch.HeapDiff();
-    var snapshots:any[] = [];
-    
-    // This will fire on each GC.
-    // We need to modify it so that it will check to ensure heap growth after multiple GCs (say 3 - 5)
-    // on a rolling window so that we don't get so many dumps (when the write is fixed)
-    // and are more temporally proximal to the actual issue.
-    memWatch.on('stats', function dumpHeap(stats){
-        var diff = baseDump.compare();
+    monitoring.on("gc", function(gc) {
 
-        if (diff.change.size_bytes > 0)
-        {
-            snapshots.push(diff);
-        }
-        else
-        {
-            let snapshots: any[]=[];
-            snapshots.push(diff);
-        }
-        
-        // If we have 5 GC collections pass with RAM growth then
-        // Write out snapshots and perform a heapdump
-        if (snapshots.length>=5){
-            //write snaps
-            snapshots.forEach(function writeSnaps(currentDiff){
-                var snapString = JSON.stringify(currentDiff);
-                console.log(snapString);
-            });
+        const freeSpace = gc.size - gc.used;
 
-            //do heapdump
-            // this presently doesn't work.  I suspect file write permissons for the process
-            heapDump.writeSnapshot('/var/local/' + Date.now() + '.heapsnapshot');            
-
-            //reset array
-            let snapshots: any[]=[];
+        if (freeSpace < prev) {
+            gcCount++;
+            console.log("gcCount: " + gcCount);
+            console.log("time: " + gc.time);
+            console.log("type: " + gc.type);
+            console.log("size: " + gc.size);
+            console.log("used: " + gc.used);
+            console.log("% used: " + ((gc.used / gc.size) * 100));
+            console.log("duration: " + gc.duration);
+            prev = freeSpace;
+        } else {
+            gcCount = 0;
+            prev = freeSpace;
         }
 
-        
-        baseDump.update();
-    
+        if (gcCount > 10) {
+            const filename = "/var/tmp/" + Date.now() + ".heapsnapshot";
+            console.log("dump written to" + filename);
+            process.chdir("/var/tmp/");
+            appmetrics.writeSnapshot(filename);
 
+            gcCount = 0;
+        }
     });
-    //end of heap debugging code
+
+    /////////////////////////////////////////////////
+    // adding memwatch to try to catch leaks - jofultz
+
+    // const memWatch = require ("@aidemaster/node-memwatch");
+    // const heapDump = await require("heapdump");
+
+    // const baseDump = new memWatch.HeapDiff();
+    // let snapshots: any[] = [];
+
+    // // This will fire on each GC.
+    // // We need to modify it so that it will check to ensure heap growth after multiple GCs (say 3 - 5)
+    // // on a rolling window so that we don't get so many dumps (when the write is fixed)
+    // // and are more temporally proximal to the actual issue.
+    // memWatch.on("stats", function dumpHeap(stats) {
+    //     const diff = baseDump.compare();
+
+    //     if (diff.change.size_bytes > 0) {
+    //         snapshots.push(diff);
+    //     } else {
+    //         snapshots = [];
+    //         snapshots.push(diff);
+    //     }
+
+    //     // If we have 5 GC collections pass with RAM growth then
+    //     // Write out snapshots and perform a heapdump
+    //     if (snapshots.length >= 5) {
+    //         // write snaps
+    //         snapshots.forEach(function writeSnaps(currentDiff) {
+    //             const snapString = JSON.stringify(currentDiff);
+    //             console.log(snapString);
+    //         });
+
+    //         // do heapdump
+    //         // this presently doesn't work.  I suspect file write permissons for the process
+    //         heapDump.writeSnapshot("/var/local/" + Date.now() + ".heapsnapshot", );
+
+    //         // reset array
+    //         snapshots = [];
+    //     }
+
+    //     baseDump.update();
+    // });
+    // end of heap debugging code
     ////////////////////////////////////////////////////////////
 
     const restify = require("restify");

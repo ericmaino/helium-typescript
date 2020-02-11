@@ -23,6 +23,7 @@ RUN npm set progress=false && npm config set depth 0
 RUN apk add --no-cache --virtual .gyp \
         make \
         python \
+        build-base \
         && npm install --production 
 RUN cp -R node_modules prod_node_modules
 RUN npm install
