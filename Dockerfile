@@ -42,4 +42,19 @@ FROM base AS release
 USER appuser
 COPY --from=dependencies /app/prod_node_modules ./node_modules
 COPY --from=test /app/dist ./dist
-ENTRYPOINT [ "sh", "./scripts/start-service.sh" ]
+# ENTRYPOINT [ "sh", "./scripts/start-service.sh" ]
+
+USER root
+# Enable SSH with a hard-coded password
+# - https://docs.microsoft.com/en-us/azure/app-service/containers/app-service-linux-ssh-support
+RUN apk add --no-cache openssh \
+  && ssh-keygen -A \
+  && echo "root:Docker!" | chpasswd
+
+COPY sshd_config /etc/ssh/
+COPY init_container.sh /
+RUN chmod +x /init_container.sh
+
+EXPOSE 8000 2222
+
+CMD ["/init_container.sh"]

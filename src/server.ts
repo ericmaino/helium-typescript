@@ -47,9 +47,9 @@ import { AnyARecord } from "dns";
         }
 
         if (gcCount > 10) {
-            const filename = "/var/tmp/" + Date.now() + ".heapsnapshot";
+            const filename = "/home/" + Date.now() + ".heapsnapshot";
             console.log("dump written to" + filename);
-            process.chdir("/var/tmp/");
+            process.chdir("/home/");
             appmetrics.writeSnapshot(filename);
 
             gcCount = 0;
