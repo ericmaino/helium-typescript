@@ -30,6 +30,17 @@
                 "${workspaceFolder}/dist/**/*.js"
             ],
             "sourceMaps": true
+        },
+        {
+            "name": "NPM",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceRoot}",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run-script", "start"
+            ],
+            "port": 9229
         }
     ]
 }
