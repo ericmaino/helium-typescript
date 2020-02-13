@@ -1,5 +1,5 @@
 # ---- Base Node ----
-FROM node:current-alpine AS base
+FROM node:current-alpine AS helium-dev-base
 
 ### Optional: Set Proxy Variables
 # ENV http_proxy {value}
@@ -9,8 +9,16 @@ FROM node:current-alpine AS base
 # ENV no_proxy {value}
 # ENV NO_PROXY {value}
 
-# Create a user
-RUN adduser -S appuser
+### install azure cli
+RUN \
+  apk update && \
+  apk add bash py-pip && \
+  apk add --virtual=build gcc libffi-dev musl-dev openssl-dev python-dev make && \
+  pip --no-cache-dir install -U pip && \
+  pip --no-cache-dir install azure-cli
+
+RUN mkdir -p /root/.azure
+
 WORKDIR /app
 COPY scripts ./scripts
 EXPOSE 4120
@@ -19,7 +27,7 @@ COPY ecosystem.config.js .
  
 #
 # ---- Dependencies ----
-FROM base AS dependencies
+FROM helium-dev-base AS dependencies
 RUN npm set progress=false && npm config set depth 0
 RUN apk add --no-cache --virtual .gyp \
         make \
@@ -28,42 +36,17 @@ RUN apk add --no-cache --virtual .gyp \
         && npm install --production 
 RUN cp -R node_modules prod_node_modules
 RUN npm install
- 
-#
-# ---- Test ----
-# run linters, setup and tests
+
 FROM dependencies AS test
 COPY . .
 RUN npm run lint && npm run build && npm run test-unit
- 
-#
-# ---- Release ----
-FROM base AS release
-# Tell docker that all commands in this step should run as the appuser user
-USER appuser
+
+FROM helium-dev-base AS release
 COPY --from=dependencies /app/prod_node_modules ./node_modules
 COPY --from=test /app/dist ./dist
-# ENTRYPOINT [ "sh", "./scripts/start-service.sh" ]
 
-USER root
-# Enable SSH with a hard-coded password
-# - https://docs.microsoft.com/en-us/azure/app-service/containers/app-service-linux-ssh-support
-RUN apk add --no-cache openssh \
-  && ssh-keygen -A \
-  && echo "root:Docker!" | chpasswd
-
-COPY sshd_config /etc/ssh/
-COPY init_container.sh /
-RUN chmod +x /init_container.sh
-
-# EXPOSE 8000 2222
-# End SSH setup
-
-# pm2 setup
 RUN npm install pm2 -g
 RUN pm2 install pm2-logrotate
 # RUN pm2 save
-# end pm2 setup
 
 CMD ["pm2-runtime", "ecosystem.config.js"]
-# CMD ["/init_container.sh"]
